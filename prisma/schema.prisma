@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+model User {
+  id                String          @id @default(cuid())
+  name              String
+  email             String          @unique
+  password          String
+  bio               String?
+  avatar            String?
+  createdAt         DateTime        @default(now())
+  hostedEvents      Event[]         @relation("HostedEvents")
+  joinMemberships   EventAttendee[]
+  attendanceRecords Attendance[]
+  eventRequests     EventRequest[]
+  payments          Payment[]
+}
+
+model Event {
+  id                String          @id @default(cuid())
+  title             String
+  description       String
+  latitude          Float
+  longitude         Float
+  datetime          DateTime
+  type              String
+  isPrivate         Boolean         @default(false)
+  isPaid            Boolean         @default(false)
+  priceSats         Int?
+  maxAttendees      Int?
+  lightningAddress  String?
+  createdAt         DateTime        @default(now())
+  hostId            String
+  host              User            @relation("HostedEvents", fields: [hostId], references: [id], onDelete: Cascade)
+  attendees         EventAttendee[]
+  attendanceRecords Attendance[]
+  requests          EventRequest[]
+  payments          Payment[]
+}
+
+model EventAttendee {
+  id        String   @id @default(cuid())
+  eventId   String
+  userId    String
+  createdAt DateTime @default(now())
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+}
+
+model EventRequest {
+  id        String        @id @default(cuid())
+  eventId   String
+  userId    String
+  status    RequestStatus @default(PENDING)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  event     Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+}
+
+model Attendance {
+  id         String   @id @default(cuid())
+  eventId    String
+  userId     String
+  paid       Boolean  @default(false)
+  paymentId  String?
+  timestamp  DateTime @default(now())
+  qrToken    String
+  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payment    Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, userId])
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  userId      String
+  eventId     String
+  invoiceId   String        @unique
+  amount      Int
+  status      PaymentStatus @default(PENDING)
+  txHash      String?
+  createdAt   DateTime      @default(now())
+  paidAt      DateTime?
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event       Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  attendance  Attendance[]
+}
